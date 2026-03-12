@@ -34,6 +34,7 @@ const corsOrigin = (origin, cb) => {
   if (/^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) return cb(null, true);
   // Allow the specific Vercel and production domains
   if (normalizedOrigin === 'https://client-nrm-mill-frontend.vercel.app') return cb(null, true);
+  if (normalizedOrigin === 'https://admin-nrm-mill-frontend.vercel.app') return cb(null, true);
   if (normalizedOrigin === 'https://rice-mill-frontend.vercel.app') return cb(null, true);
   
   console.log('Blocked by CORS:', origin);
