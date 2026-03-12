@@ -230,7 +230,7 @@ exports.adminGoogleVerify = async (req, res) => {
       return res.status(400).json({ message: 'Google account has no email' });
     }
 
-    const admin = await Admin.findOne({ email });
+    const admin = await Admin.findOne({ email: email.toLowerCase() });
     if (!admin) {
       return res.status(403).json({ message: 'Access denied. You are not an authorized admin.' });
     }
