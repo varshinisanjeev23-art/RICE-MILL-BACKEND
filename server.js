@@ -23,12 +23,19 @@ const careersRoutes = require('./routes/careers.routes');
 const app = express();
 
 // Allow localhost/127.0.0.1 on any dev port plus explicit env origins
-const explicitOrigins = (process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : []).map(o => o.trim());
+const explicitOrigins = (process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : []).map(o => o.trim().replace(/\/$/, ''));
+console.log('CORS Allowed Origins:', explicitOrigins);
+
 const corsOrigin = (origin, cb) => {
-  if (!origin) return cb(null, true); // non-browser or same-origin
-  if (explicitOrigins.includes(origin)) return cb(null, true);
+  if (!origin) return cb(null, true); 
+  const normalizedOrigin = origin.replace(/\/$/, '');
+  if (explicitOrigins.includes(normalizedOrigin)) return cb(null, true);
   if (/^http:\/\/localhost:\d+$/.test(origin)) return cb(null, true);
   if (/^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) return cb(null, true);
+  // Allow the specific Vercel domain provided by user just in case env is not picked up
+  if (normalizedOrigin === 'https://client-nrm-mill-frontend.vercel.app') return cb(null, true);
+  
+  console.log('Blocked by CORS:', origin);
   return cb(new Error('Not allowed by CORS'));
 };
 app.use(cors({ origin: corsOrigin, credentials: true }));
