@@ -40,7 +40,28 @@ app.use(morgan('dev'));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', service: 'NRM Rice Mill API' });
+  res.send(`
+    <html>
+      <head>
+        <style>
+          body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+          .top-bar { background-color: #2d3e2d; height: 12px; width: 100%; }
+          .container { padding: 20px; }
+          h1 { font-size: 28px; font-weight: 400; color: #000; margin: 0; }
+        </style>
+      </head>
+      <body>
+        <div class="top-bar"></div>
+        <div class="container">
+          <h1>NRM Rice Mill Backend API is running 🚀</h1>
+        </div>
+      </body>
+    </html>
+  `);
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
 });
 
 app.use('/api/auth', authRoutes);
