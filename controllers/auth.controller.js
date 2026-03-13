@@ -274,10 +274,16 @@ exports.forgotPassword = async (req, res) => {
 
     const mailUser = process.env.MAIL_USER;
     const mailPass = process.env.MAIL_PASS;
-    const isPlaceholder = !mailUser || mailUser.includes('your-email') || !mailUser.includes('@') || !mailPass || mailPass.includes('your-app-password') || mailPass === 'provide_your_app_password_here';
+    const isPlaceholder = !mailUser || mailUser.includes('your-email') || !mailUser.includes('@') || 
+                         !mailPass || mailPass.includes('your-app-password') || 
+                         mailPass === 'provide_your_app_password_here' || mailPass.trim() === '';
 
-    const origin = req.get('origin') || (process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').find(u => !u.includes('localhost')) : null) || 'http://localhost:5173';
-    const resetUrl = `${origin.replace(/\/$/, '')}/reset-password/${token}`;
+    // Prioritize production URL from CLIENT_URL for the link, fallback to request origin
+    const clientUrls = (process.env.CLIENT_URL || '').split(',').map(u => u.trim().replace(/\/$/, ''));
+    const prodUrl = clientUrls.find(u => u.includes('vercel.app') || u.includes('rice-mill'));
+    const origin = prodUrl || req.get('origin') || clientUrls[0] || 'http://localhost:5173';
+    
+    const resetUrl = `${origin}/reset-password/${token}`;
     
     console.log(`Reset URL generated: ${resetUrl}`);
 
