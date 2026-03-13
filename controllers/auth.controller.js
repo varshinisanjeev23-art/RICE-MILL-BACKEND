@@ -284,11 +284,21 @@ exports.forgotPassword = async (req, res) => {
                          !mailPass || mailPass.includes('your-app-password') || 
                          mailPass === 'provide_your_app_password_here' || mailPass.trim() === '';
 
-    // Prioritize production URL from CLIENT_URL for the link, fallback to request origin
+    // Detect the correct frontend URL
+    const requestOrigin = req.get('origin')?.replace(/\/$/, '');
     const clientUrls = (process.env.CLIENT_URL || '').split(',').map(u => u.trim().replace(/\/$/, ''));
-    const prodUrl = clientUrls.find(u => u.includes('vercel.app') || u.includes('rice-mill'));
-    const origin = prodUrl || req.get('origin') || clientUrls[0] || 'http://localhost:5173';
     
+    // Default to the first URL in CLIENT_URL if request origin is invalid
+    let origin = requestOrigin || clientUrls[0] || 'http://localhost:5173';
+    
+    // If it's an admin reset but we are on the customer site, or vice versa, try to find the better URL
+    if (modelName === 'Admin') {
+      const adminDomain = clientUrls.find(u => u.includes('admin') || u.includes('staff'));
+      if (adminDomain && !origin.includes('admin')) {
+         origin = adminDomain;
+      }
+    }
+
     const resetUrl = `${origin}/reset-password/${token}`;
     
     console.log(`Reset URL generated: ${resetUrl}`);
