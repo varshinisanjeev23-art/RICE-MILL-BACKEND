@@ -307,21 +307,46 @@ exports.forgotPassword = async (req, res) => {
         await transporter.sendMail(mailOptions);
         return res.json({ message: 'If an account exists, a reset link has been sent.' });
       } catch (mailError) {
-        console.error('Failed to send reset email:', mailError.message);
-        // Fall through to dev mode response if mail fails
+        console.error('Failed to send real reset email:', mailError.message);
+        // Fall through to Ethereal fallback
       }
     }
 
-    // Dev Mode Fallback
-    console.warn('--- DEV MODE: RESET LINK ---');
-    console.warn(`Email: ${user.email}`);
-    console.warn(`Link: ${resetUrl}`);
-    console.warn('----------------------------');
+    // --- AUTOMATIC TEST EMAIL FALLBACK (ETHEREAL) ---
+    try {
+      // Create a test account on the fly
+      const testAccount = await nodemailer.createTestAccount();
+      const testTransporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: { user: testAccount.user, pass: testAccount.pass }
+      });
 
-    res.json({ 
-      message: 'System email not configured. Reset link generated for development.',
-      debugLink: resetUrl 
-    });
+      const testMailOptions = {
+        from: '"NRM Rice Mill" <noreply@nrm-mill.com>',
+        to: user.email,
+        subject: 'Password Reset Request (TEST)',
+        text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
+          TEST RESET LINK: ${resetUrl}\n\n
+          This is a test email sent because your system email is not configured.`
+      };
+
+      const info = await testTransporter.sendMail(testMailOptions);
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+
+      console.warn('--- TEST EMAIL SENT ---');
+      console.warn('Preview URL:', previewUrl);
+      console.warn('-----------------------');
+
+      return res.json({ 
+        message: 'System email not configured. A test email was sent to a virtual inbox.',
+        debugLink: resetUrl,
+        previewUrl: previewUrl // This gives the user a way to see the "email"
+      });
+    } catch (etherealError) {
+      console.error('Failed to send test email:', etherealError.message);
+    }
   } catch (err) {
     console.error('ForgotPassword error:', err);
     res.status(500).json({ message: 'An internal error occurred while processing your request.' });
