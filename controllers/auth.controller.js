@@ -259,18 +259,24 @@ exports.forgotPassword = async (req, res) => {
     if (!email) return res.status(400).json({ message: 'Email is required' });
     
     const lowerEmail = email.toLowerCase();
-    const user = await User.findOne({ email: lowerEmail });
+    let account = await User.findOne({ email: lowerEmail });
+    let modelName = 'User';
+
+    if (!account) {
+      account = await Admin.findOne({ email: lowerEmail });
+      modelName = 'Admin';
+    }
     
-    if (!user) {
-      // Return success to avoid enumeration, but log it internally
+    if (!account) {
+      // Return success to avoid enumeration
       console.log(`Password reset requested for non-existent email: ${lowerEmail}`);
       return res.json({ message: 'If an account exists, a reset link has been sent.' });
     }
 
     const token = crypto.randomBytes(20).toString('hex');
-    user.resetPasswordToken = token;
-    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
-    await user.save();
+    account.resetPasswordToken = token;
+    account.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+    await account.save();
 
     const mailUser = process.env.MAIL_USER;
     const mailPass = process.env.MAIL_PASS;
@@ -296,7 +302,7 @@ exports.forgotPassword = async (req, res) => {
 
         const mailOptions = {
           from: mailUser,
-          to: user.email,
+          to: account.email,
           subject: 'Password Reset Request',
           text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
             Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it:\n\n
@@ -325,8 +331,8 @@ exports.forgotPassword = async (req, res) => {
 
       const testMailOptions = {
         from: '"NRM Rice Mill" <noreply@nrm-mill.com>',
-        to: user.email,
-        subject: 'Password Reset Request (TEST)',
+        to: account.email,
+        subject: `Password Reset Request (${modelName} TEST)`,
         text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
           TEST RESET LINK: ${resetUrl}\n\n
           This is a test email sent because your system email is not configured.`
@@ -336,13 +342,14 @@ exports.forgotPassword = async (req, res) => {
       const previewUrl = nodemailer.getTestMessageUrl(info);
 
       console.warn('--- TEST EMAIL SENT ---');
+      console.warn(`Target: ${account.email} (${modelName})`);
       console.warn('Preview URL:', previewUrl);
       console.warn('-----------------------');
 
       return res.json({ 
         message: 'System email not configured. A test email was sent to a virtual inbox.',
         debugLink: resetUrl,
-        previewUrl: previewUrl // This gives the user a way to see the "email"
+        previewUrl: previewUrl
       });
     } catch (etherealError) {
       console.error('Failed to send test email:', etherealError.message);
@@ -356,20 +363,27 @@ exports.forgotPassword = async (req, res) => {
 exports.resetPassword = async (req, res) => {
   try {
     const { token, password } = req.body;
-    const user = await User.findOne({
+    let account = await User.findOne({
       resetPasswordToken: token,
       resetPasswordExpires: { $gt: Date.now() }
     });
 
-    if (!user) {
+    if (!account) {
+      account = await Admin.findOne({
+        resetPasswordToken: token,
+        resetPasswordExpires: { $gt: Date.now() }
+      });
+    }
+
+    if (!account) {
       return res.status(400).json({ message: 'Password reset token is invalid or has expired.' });
     }
 
     const hash = await bcrypt.hash(password, 10);
-    user.password = hash;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-    await user.save();
+    account.password = hash;
+    account.resetPasswordToken = undefined;
+    account.resetPasswordExpires = undefined;
+    await account.save();
 
     res.json({ message: 'Password has been updated.' });
   } catch (err) {
