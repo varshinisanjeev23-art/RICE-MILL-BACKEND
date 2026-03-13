@@ -17,10 +17,11 @@ function signToken(user) {
 exports.register = async (req, res) => {
   try {
     const { name, email, password, company } = req.body;
-    const exists = await User.findOne({ email });
+    const lowerEmail = email.toLowerCase();
+    const exists = await User.findOne({ email: lowerEmail });
     if (exists) return res.status(400).json({ message: 'Email already registered' });
     const hash = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, password: hash, company, role: 'user' });
+    const user = await User.create({ name, email: lowerEmail, password: hash, company, role: 'user' });
     const token = signToken(user);
     res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
@@ -31,7 +32,8 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const lowerEmail = email.toLowerCase();
+    const user = await User.findOne({ email: lowerEmail });
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(400).json({ message: 'Invalid credentials' });
@@ -45,7 +47,8 @@ exports.login = async (req, res) => {
 exports.adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const admin = await Admin.findOne({ email });
+    const lowerEmail = email.toLowerCase();
+    const admin = await Admin.findOne({ email: lowerEmail });
     if (!admin) return res.status(400).json({ message: 'Invalid credentials' });
     const ok = await bcrypt.compare(password, admin.password);
     if (!ok) return res.status(400).json({ message: 'Invalid credentials' });
@@ -253,12 +256,14 @@ exports.adminGoogleVerify = async (req, res) => {
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    if (!email) return res.status(400).json({ message: 'Email is required' });
     
-    // For security, don't reveal if user exists or not in a "forgot password" flow
-    // but in this implementation, we can be more direct or follow the security best practice.
-    // The client expects a success message regardless to prevent email enumeration.
+    const lowerEmail = email.toLowerCase();
+    const user = await User.findOne({ email: lowerEmail });
+    
     if (!user) {
+      // Return success to avoid enumeration, but log it internally
+      console.log(`Password reset requested for non-existent email: ${lowerEmail}`);
       return res.json({ message: 'If an account exists, a reset link has been sent.' });
     }
 
@@ -267,49 +272,53 @@ exports.forgotPassword = async (req, res) => {
     user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
     await user.save();
 
-    const transporter = nodemailer.createTransport({
-      service: process.env.MAIL_SERVICE || 'gmail',
-      auth: {
-        user: process.env.MAIL_USER,
-        pass: process.env.MAIL_PASS
-      }
-    });
+    const mailUser = process.env.MAIL_USER;
+    const mailPass = process.env.MAIL_PASS;
+    const isPlaceholder = !mailUser || mailUser.includes('your-email') || !mailUser.includes('@') || !mailPass || mailPass.includes('your-app-password') || mailPass === 'provide_your_app_password_here';
 
-    const resetUrl = `${process.env.CLIENT_URL?.split(',')[0] || 'http://localhost:5173'}/reset-password/${token}`;
+    const origin = req.get('origin') || (process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').find(u => !u.includes('localhost')) : null) || 'http://localhost:5173';
+    const resetUrl = `${origin.replace(/\/$/, '')}/reset-password/${token}`;
     
-    const mailOptions = {
-      from: process.env.MAIL_USER,
-      to: user.email,
-      subject: 'Password Reset Request',
-      text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
-        Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it:\n\n
-        ${resetUrl}\n\n
-        If you did not request this, please ignore this email and your password will remain unchanged.\n`
-    };
-
-    const isPlaceholder = !process.env.MAIL_USER || process.env.MAIL_USER.includes('your-email') || !process.env.MAIL_PASS || process.env.MAIL_PASS.includes('your-app-password');
+    console.log(`Reset URL generated: ${resetUrl}`);
 
     if (!isPlaceholder) {
       try {
+        const transporter = nodemailer.createTransport({
+          service: process.env.MAIL_SERVICE || 'gmail',
+          auth: { user: mailUser, pass: mailPass }
+        });
+
+        const mailOptions = {
+          from: mailUser,
+          to: user.email,
+          subject: 'Password Reset Request',
+          text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
+            Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it:\n\n
+            ${resetUrl}\n\n
+            If you did not request this, please ignore this email and your password will remain unchanged.\n`
+        };
+
         await transporter.sendMail(mailOptions);
         return res.json({ message: 'If an account exists, a reset link has been sent.' });
       } catch (mailError) {
         console.error('Failed to send reset email:', mailError.message);
-        // Continue to fallback if mail fails
+        // Fall through to dev mode response if mail fails
       }
     }
 
-    console.warn('--- PASSWORD RESET LINK (DEV MODE) ---');
-    console.warn('Email would have been sent to:', user.email);
-    console.warn('Reset URL:', resetUrl);
-    console.warn('--------------------------------------');
+    // Dev Mode Fallback
+    console.warn('--- DEV MODE: RESET LINK ---');
+    console.warn(`Email: ${user.email}`);
+    console.warn(`Link: ${resetUrl}`);
+    console.warn('----------------------------');
 
     res.json({ 
-      message: 'System email not configured. Reset link generated in server logs.',
-      debugLink: resetUrl // Returning the link for easy testing during development
+      message: 'System email not configured. Reset link generated for development.',
+      debugLink: resetUrl 
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('ForgotPassword error:', err);
+    res.status(500).json({ message: 'An internal error occurred while processing your request.' });
   }
 };
 
