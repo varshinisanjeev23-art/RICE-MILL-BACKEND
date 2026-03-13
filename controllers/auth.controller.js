@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const Admin = require('../models/Admin');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 function signToken(user) {
   return jwt.sign(
@@ -245,6 +247,93 @@ exports.adminGoogleVerify = async (req, res) => {
   } catch (err) {
     console.error('Admin Google verification error:', err);
     res.status(500).json({ message: 'Identity verification failed: ' + err.message });
+  }
+};
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    
+    // For security, don't reveal if user exists or not in a "forgot password" flow
+    // but in this implementation, we can be more direct or follow the security best practice.
+    // The client expects a success message regardless to prevent email enumeration.
+    if (!user) {
+      return res.json({ message: 'If an account exists, a reset link has been sent.' });
+    }
+
+    const token = crypto.randomBytes(20).toString('hex');
+    user.resetPasswordToken = token;
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+    await user.save();
+
+    const transporter = nodemailer.createTransport({
+      service: process.env.MAIL_SERVICE || 'gmail',
+      auth: {
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS
+      }
+    });
+
+    const resetUrl = `${process.env.CLIENT_URL?.split(',')[0] || 'http://localhost:5173'}/reset-password/${token}`;
+    
+    const mailOptions = {
+      from: process.env.MAIL_USER,
+      to: user.email,
+      subject: 'Password Reset Request',
+      text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
+        Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it:\n\n
+        ${resetUrl}\n\n
+        If you did not request this, please ignore this email and your password will remain unchanged.\n`
+    };
+
+    const isPlaceholder = !process.env.MAIL_USER || process.env.MAIL_USER.includes('your-email') || !process.env.MAIL_PASS || process.env.MAIL_PASS.includes('your-app-password');
+
+    if (!isPlaceholder) {
+      try {
+        await transporter.sendMail(mailOptions);
+        return res.json({ message: 'If an account exists, a reset link has been sent.' });
+      } catch (mailError) {
+        console.error('Failed to send reset email:', mailError.message);
+        // Continue to fallback if mail fails
+      }
+    }
+
+    console.warn('--- PASSWORD RESET LINK (DEV MODE) ---');
+    console.warn('Email would have been sent to:', user.email);
+    console.warn('Reset URL:', resetUrl);
+    console.warn('--------------------------------------');
+
+    res.json({ 
+      message: 'System email not configured. Reset link generated in server logs.',
+      debugLink: resetUrl // Returning the link for easy testing during development
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Password reset token is invalid or has expired.' });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+    user.password = hash;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({ message: 'Password has been updated.' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 

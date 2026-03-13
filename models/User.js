@@ -8,7 +8,9 @@ const userSchema = new mongoose.Schema(
     company: { type: String },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     googleId: { type: String },
-    profilePicture: { type: String }
+    profilePicture: { type: String },
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date }
   },
 
   { timestamps: true }
