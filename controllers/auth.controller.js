@@ -311,13 +311,23 @@ exports.forgotPassword = async (req, res) => {
         });
 
         const mailOptions = {
-          from: mailUser,
+          from: `"NRM Support" <${mailUser}>`,
           to: account.email,
           subject: 'Password Reset Request',
-          text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
-            Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it:\n\n
-            ${resetUrl}\n\n
-            If you did not request this, please ignore this email and your password will remain unchanged.\n`
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+              <h2 style="color: #4f46e5; text-align: center;">NRM Rice Mill</h2>
+              <p>Hi ${account.name || 'User'},</p>
+              <p>You are receiving this because you (or someone else) have requested the reset of the password for your account.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${resetUrl}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">Reset Password</a>
+              </div>
+              <p>Or copy and paste this link into your browser:</p>
+              <p style="word-break: break-all; color: #4f46e5;">${resetUrl}</p>
+              <hr style="border: 0; border-top: 1px solid #eeeeee; margin: 20px 0;">
+              <p style="font-size: 12px; color: #666666;">This link will expire in 1 hour. If you did not request this, please ignore this email and your password will remain unchanged.</p>
+            </div>
+          `
         };
 
         await transporter.sendMail(mailOptions);
