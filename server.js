@@ -29,10 +29,12 @@ console.log('CORS Allowed Origins:', explicitOrigins);
 const corsOrigin = (origin, cb) => {
   if (!origin) return cb(null, true); 
   const normalizedOrigin = origin.replace(/\/$/, '');
+  
   if (explicitOrigins.includes(normalizedOrigin)) return cb(null, true);
-  if (/^http:\/\/localhost:\d+$/.test(origin)) return cb(null, true);
-  if (/^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) return cb(null, true);
-  // Allow the specific Vercel and production domains
+  if (/^http:\/\/localhost:\d+$/.test(normalizedOrigin)) return cb(null, true);
+  if (/^http:\/\/127\.0\.0\.1:\d+$/.test(normalizedOrigin)) return cb(null, true);
+  
+  // Explicit production domains
   if (normalizedOrigin === 'https://client-nrm-mill-frontend.vercel.app') return cb(null, true);
   if (normalizedOrigin === 'https://admin-nrm-mill-frontend.vercel.app') return cb(null, true);
   if (normalizedOrigin === 'https://rice-mill-frontend.vercel.app') return cb(null, true);
