@@ -22,27 +22,13 @@ const careersRoutes = require('./routes/careers.routes');
 
 const app = express();
 
-// Allow localhost/127.0.0.1 on any dev port plus explicit env origins
-const explicitOrigins = (process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : []).map(o => o.trim().replace(/\/$/, ''));
-console.log('CORS Allowed Origins:', explicitOrigins);
-
-const corsOrigin = (origin, cb) => {
-  if (!origin) return cb(null, true); 
-  const normalizedOrigin = origin.replace(/\/$/, '');
-  
-  if (explicitOrigins.includes(normalizedOrigin)) return cb(null, true);
-  if (/^http:\/\/localhost:\d+$/.test(normalizedOrigin)) return cb(null, true);
-  if (/^http:\/\/127\.0\.0\.1:\d+$/.test(normalizedOrigin)) return cb(null, true);
-  
-  // Explicit production domains
-  if (normalizedOrigin === 'https://client-nrm-mill-frontend.vercel.app') return cb(null, true);
-  if (normalizedOrigin === 'https://admin-nrm-mill-frontend.vercel.app') return cb(null, true);
-  if (normalizedOrigin === 'https://rice-mill-frontend.vercel.app') return cb(null, true);
-  
-  console.log('Blocked by CORS:', origin);
-  return cb(new Error('Not allowed by CORS'));
-};
-app.use(cors({ origin: corsOrigin, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow all origins for now to resolve persistent CORS blockers
+    callback(null, true);
+  },
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
