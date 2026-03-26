@@ -28,7 +28,7 @@ exports.create = async (req, res) => {
     // Build images array from uploaded files
     let images = [];
     if (req.files && req.files.length > 0) {
-      images = req.files.map(f => `/uploads/${f.filename}`);
+      images = req.files.map(f => `/uploads/products/${f.filename}`);
     }
     const imageUrl = images[0] || req.body.imageUrl || '';
 
@@ -93,7 +93,7 @@ exports.update = async (req, res) => {
 
     // Handle uploaded images
     if (req.files && req.files.length > 0) {
-      const newImages = req.files.map(f => `/uploads/${f.filename}`);
+      const newImages = req.files.map(f => `/uploads/products/${f.filename}`);
       updateData.images = newImages;
       updateData.imageUrl = newImages[0];
     }
